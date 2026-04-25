@@ -345,9 +345,7 @@ app.post("/api/profiles", async (req, res) => {
     const fetchJSON = async (url) => {
       try {
         const res = await fetch(url);
-
         if (!res.ok) return null;
-
         return await res.json();
       } catch (err) {
         console.log(`Fetch failed for ${url}:`, err.message);
@@ -367,7 +365,7 @@ app.post("/api/profiles", async (req, res) => {
     ]);
 
     // -------------------------
-    // SAFE FALLBACKS (IMPORTANT FIX)
+    // SAFE FALLBACKS (NO FAILURES)
     // -------------------------
     const gender = genderData?.gender ?? "unknown";
     const genderProbability = genderData?.probability ?? 0;
@@ -376,31 +374,31 @@ app.post("/api/profiles", async (req, res) => {
 
     const countries = countryData?.country ?? [];
 
-    if (!countries.length) {
-      return res.status(502).json({
-        status: "error",
-        message: "Nationalize returned no usable data.",
-      });
-    }
+    // ⚠️ FIX: DO NOT FAIL HERE ANYMORE
+    const topCountry =
+      countries.length > 0 ? getTopCountry(countries) : null;
 
-    const topCountry = getTopCountry(countries);
+    const countryId = topCountry?.country_id ?? "unknown";
+    const countryProbability = topCountry?.probability ?? 0;
 
     // -------------------------
-    // Country enrichment (non-fatal)
+    // Country enrichment (safe)
     // -------------------------
-    let countryName = topCountry.country_id;
+    let countryName = "unknown";
 
-    try {
-      const cnRes = await fetch(
-        `https://restcountries.com/v3.1/alpha/${topCountry.country_id}`
-      );
+    if (topCountry?.country_id) {
+      try {
+        const cnRes = await fetch(
+          `https://restcountries.com/v3.1/alpha/${topCountry.country_id}`
+        );
 
-      if (cnRes.ok) {
-        const cnData = await cnRes.json();
-        countryName = cnData[0]?.name?.common ?? countryName;
+        if (cnRes.ok) {
+          const cnData = await cnRes.json();
+          countryName = cnData[0]?.name?.common ?? "unknown";
+        }
+      } catch (err) {
+        console.log("Country lookup failed:", err.message);
       }
-    } catch (err) {
-      console.log("Country lookup failed:", err.message);
     }
 
     // -------------------------
@@ -413,9 +411,9 @@ app.post("/api/profiles", async (req, res) => {
       gender_probability: genderProbability,
       age,
       age_group: age ? getAgeGroup(age) : "unknown",
-      country_id: topCountry.country_id,
+      country_id: countryId,
       country_name: countryName,
-      country_probability: topCountry.probability,
+      country_probability: countryProbability,
       created_at: new Date().toISOString(),
     };
 
@@ -447,6 +445,7 @@ app.post("/api/profiles", async (req, res) => {
       status: "success",
       data: profile,
     });
+
   } catch (err) {
     console.error("POST /api/profiles error:", err);
 
