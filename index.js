@@ -235,18 +235,26 @@ app.post("/api/profiles", async (req, res) => {
       });
     }
 
-    const [genderRes, ageRes, countryRes] = await Promise.all([
-      fetch(`https://api.genderize.io?name=${encodeURIComponent(name)}`),
-      fetch(`https://api.agify.io?name=${encodeURIComponent(name)}`),
-      fetch(`https://api.nationalize.io?name=${encodeURIComponent(name)}`),
-    ]);
+    const fetchJSON = async (url) => {
+  try {
+    const res = await fetch(url);
 
-    const [genderData, ageData, countryData] = await Promise.all([
-      genderRes.json(),
-      ageRes.json(),
-      countryRes.json(),
-    ]);
+    if (!res.ok) {
+      throw new Error(`HTTP error ${res.status}`);
+    }
 
+    return await res.json();
+  } catch (err) {
+    console.log(`Fetch failed for ${url}:`, err.message);
+    return null;
+  }
+};
+
+const [genderData, ageData, countryData] = await Promise.all([
+  fetchJSON(`https://api.genderize.io?name=${encodeURIComponent(name)}`),
+  fetchJSON(`https://api.agify.io?name=${encodeURIComponent(name)}`),
+  fetchJSON(`https://api.nationalize.io?name=${encodeURIComponent(name)}`),
+]);
     if (!genderData.gender || genderData.count === 0)
       return res.status(502).json({ status: "error", message: "Genderize returned an invalid response." });
 
