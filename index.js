@@ -9,20 +9,20 @@ const { Pool } = pg;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ─── DB Connection ────────────────────────────────────────────────────────────
+//connection pool for Postgres
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
 app.use(express.json());
-// ─── Middleware ───────────────────────────────────────────────────────────────
+// middleware to allow CORS (for testing with frontend apps)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   next();
 });
 
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+//helpers functions in my code
 const getAgeGroup = (age) => {
   if (age <= 12) return "child";
   if (age <= 19) return "teenager";
@@ -205,13 +205,13 @@ function parseSortPaginationParams(query) {
   return { sortField, sortOrder, pageNum, limitNum };
 }
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
+//routes
 
 app.get("/", (req, res) => {
   res.json({ status: "success", message: "Insighta Labs Intelligence API" });
 });
 
-// ── POST /api/profiles ─────────────────────────────────────────────────────
+
 app.post("/api/profiles", async (req, res) => {
   try {
     const { name } = req.body || {};
@@ -297,7 +297,7 @@ app.post("/api/profiles", async (req, res) => {
   }
 });
 
-// ── GET /api/profiles/search  (natural language) ───────────────────────────
+// GET /api/profiles/search  (natural language) 
 app.get("/api/profiles/search", async (req, res) => {
   try {
     const { q } = req.query;
@@ -312,7 +312,7 @@ app.get("/api/profiles/search", async (req, res) => {
       return res.status(422).json({ status: "error", message: "Unable to interpret query" });
     }
 
-    // Merge NL filters with any explicit overrides from query string
+    
     const mergedFilters = { ...parsed };
 
     const sortPagination = parseSortPaginationParams(req.query);
@@ -349,7 +349,7 @@ app.get("/api/profiles/search", async (req, res) => {
   }
 });
 
-// ── GET /api/profiles ──────────────────────────────────────────────────────
+//  GET /api/profiles 
 app.get("/api/profiles", async (req, res) => {
   try {
     const filterResult = parseFilterParams(req.query);
@@ -391,7 +391,7 @@ app.get("/api/profiles", async (req, res) => {
   }
 });
 
-// ── GET /api/profiles/:id ──────────────────────────────────────────────────
+//GET /api/profiles/:id 
 app.get("/api/profiles/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -406,7 +406,7 @@ app.get("/api/profiles/:id", async (req, res) => {
   }
 });
 
-// ── DELETE /api/profiles/:id ───────────────────────────────────────────────
+// DELETE /api/profiles/:id 
 app.delete("/api/profiles/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -424,7 +424,7 @@ app.delete("/api/profiles/:id", async (req, res) => {
   }
 });
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
