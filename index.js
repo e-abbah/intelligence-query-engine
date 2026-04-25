@@ -212,21 +212,125 @@ app.get("/", (req, res) => {
 });
 
 
+// app.post("/api/profiles", async (req, res) => {
+//   try {
+//     const { name } = req.body || {};
+
+//     if (!name || typeof name !== "string" || name.trim() === "") {
+//       return res.status(400).json({ status: "error", message: "Name is required." });
+//     }
+
+//     const normalizedName = name.trim().toLowerCase();
+
+//     // Idempotency check
+//     const existing = await pool.query(
+//       "SELECT * FROM profiles WHERE name = $1",
+//       [normalizedName]
+//     );
+//     if (existing.rows.length > 0) {
+//       return res.status(200).json({
+//         status: "success",
+//         message: "Profile already exists",
+//         data: existing.rows[0],
+//       });
+//     }
+
+//     const fetchJSON = async (url) => {
+//   try {
+//     const res = await fetch(url);
+
+//     if (!res.ok) {
+//       throw new Error(`HTTP error ${res.status}`);
+//     }
+
+//     return await res.json();
+//   } catch (err) {
+//     console.log(`Fetch failed for ${url}:`, err.message);
+//     return null;
+//   }
+// };
+
+// const [genderData, ageData, countryData] = await Promise.all([
+//   fetchJSON(`https://api.genderize.io?name=${encodeURIComponent(name)}`),
+//   fetchJSON(`https://api.agify.io?name=${encodeURIComponent(name)}`),
+//   fetchJSON(`https://api.nationalize.io?name=${encodeURIComponent(name)}`),
+// ]);
+//     if (!genderData?.gender || genderData.count === 0)
+//       return res.status(502).json({ status: "error", message: "Genderize returned an invalid response." });
+
+//     if (!ageData?.age)
+//       return res.status(502).json({ status: "error", message: "Agify returned an invalid response." });
+
+//     if (!countryData?.country || countryData.country.length === 0)
+//       return res.status(502).json({ status: "error", message: "Nationalize returned an invalid response." });
+
+//     const topCountry = getTopCountry(countryData.country);
+
+//     // Fetch country name from REST Countries
+//     let countryName = topCountry.country_id;
+//     try {
+//       const cnRes = await fetch(`https://restcountries.com/v3.1/alpha/${topCountry.country_id}`);
+//       const cnData = await cnRes.json();
+//       countryName = cnData[0]?.name?.common ?? topCountry.country_id;
+//     } catch (_) { /* non-fatal */ }
+
+//     const profile = {
+//       id: uuidv7(),
+//       name: normalizedName,
+//       gender: genderData.gender,
+//       gender_probability: genderData.probability,
+//       age: ageData.age,
+//       age_group: getAgeGroup(ageData.age),
+//       country_id: topCountry.country_id,
+//       country_name: countryName,
+//       country_probability: topCountry.probability,
+//       created_at: new Date().toISOString(),
+//     };
+
+//     await pool.query(
+//       `INSERT INTO profiles
+//         (id, name, gender, gender_probability, age, age_group, country_id, country_name, country_probability, created_at)
+//        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+//       [
+//         profile.id, profile.name, profile.gender, profile.gender_probability,
+//         profile.age, profile.age_group, profile.country_id, profile.country_name,
+//         profile.country_probability, profile.created_at,
+//       ]
+//     );
+
+//     return res.status(201).json({ status: "success", data: profile });
+//   } catch (err) {
+//     console.log(err);
+//     return res.status(500).json({ status: "error", message: err.message });
+//   }
+// });
+
+// GET /api/profiles/search  (natural language) 
+
 app.post("/api/profiles", async (req, res) => {
   try {
     const { name } = req.body || {};
 
+    // -------------------------
+    // Validate input
+    // -------------------------
     if (!name || typeof name !== "string" || name.trim() === "") {
-      return res.status(400).json({ status: "error", message: "Name is required." });
+      return res.status(400).json({
+        status: "error",
+        message: "Name is required.",
+      });
     }
 
     const normalizedName = name.trim().toLowerCase();
 
+    // -------------------------
     // Idempotency check
+    // -------------------------
     const existing = await pool.query(
       "SELECT * FROM profiles WHERE name = $1",
       [normalizedName]
     );
+
     if (existing.rows.length > 0) {
       return res.status(200).json({
         status: "success",
@@ -235,77 +339,123 @@ app.post("/api/profiles", async (req, res) => {
       });
     }
 
+    // -------------------------
+    // Safe fetch helper
+    // -------------------------
     const fetchJSON = async (url) => {
-  try {
-    const res = await fetch(url);
+      try {
+        const res = await fetch(url);
 
-    if (!res.ok) {
-      throw new Error(`HTTP error ${res.status}`);
+        if (!res.ok) return null;
+
+        return await res.json();
+      } catch (err) {
+        console.log(`Fetch failed for ${url}:`, err.message);
+        return null;
+      }
+    };
+
+    const encodedName = encodeURIComponent(name);
+
+    // -------------------------
+    // External API calls
+    // -------------------------
+    const [genderData, ageData, countryData] = await Promise.all([
+      fetchJSON(`https://api.genderize.io?name=${encodedName}`),
+      fetchJSON(`https://api.agify.io?name=${encodedName}`),
+      fetchJSON(`https://api.nationalize.io?name=${encodedName}`),
+    ]);
+
+    // -------------------------
+    // SAFE FALLBACKS (IMPORTANT FIX)
+    // -------------------------
+    const gender = genderData?.gender ?? "unknown";
+    const genderProbability = genderData?.probability ?? 0;
+
+    const age = ageData?.age ?? null;
+
+    const countries = countryData?.country ?? [];
+
+    if (!countries.length) {
+      return res.status(502).json({
+        status: "error",
+        message: "Nationalize returned no usable data.",
+      });
     }
 
-    return await res.json();
-  } catch (err) {
-    console.log(`Fetch failed for ${url}:`, err.message);
-    return null;
-  }
-};
+    const topCountry = getTopCountry(countries);
 
-const [genderData, ageData, countryData] = await Promise.all([
-  fetchJSON(`https://api.genderize.io?name=${encodeURIComponent(name)}`),
-  fetchJSON(`https://api.agify.io?name=${encodeURIComponent(name)}`),
-  fetchJSON(`https://api.nationalize.io?name=${encodeURIComponent(name)}`),
-]);
-    if (!genderData?.gender || genderData.count === 0)
-      return res.status(502).json({ status: "error", message: "Genderize returned an invalid response." });
-
-    if (!ageData?.age)
-      return res.status(502).json({ status: "error", message: "Agify returned an invalid response." });
-
-    if (!countryData?.country || countryData.country.length === 0)
-      return res.status(502).json({ status: "error", message: "Nationalize returned an invalid response." });
-
-    const topCountry = getTopCountry(countryData.country);
-
-    // Fetch country name from REST Countries
+    // -------------------------
+    // Country enrichment (non-fatal)
+    // -------------------------
     let countryName = topCountry.country_id;
-    try {
-      const cnRes = await fetch(`https://restcountries.com/v3.1/alpha/${topCountry.country_id}`);
-      const cnData = await cnRes.json();
-      countryName = cnData[0]?.name?.common ?? topCountry.country_id;
-    } catch (_) { /* non-fatal */ }
 
+    try {
+      const cnRes = await fetch(
+        `https://restcountries.com/v3.1/alpha/${topCountry.country_id}`
+      );
+
+      if (cnRes.ok) {
+        const cnData = await cnRes.json();
+        countryName = cnData[0]?.name?.common ?? countryName;
+      }
+    } catch (err) {
+      console.log("Country lookup failed:", err.message);
+    }
+
+    // -------------------------
+    // Build profile
+    // -------------------------
     const profile = {
       id: uuidv7(),
       name: normalizedName,
-      gender: genderData.gender,
-      gender_probability: genderData.probability,
-      age: ageData.age,
-      age_group: getAgeGroup(ageData.age),
+      gender,
+      gender_probability: genderProbability,
+      age,
+      age_group: age ? getAgeGroup(age) : "unknown",
       country_id: topCountry.country_id,
       country_name: countryName,
       country_probability: topCountry.probability,
       created_at: new Date().toISOString(),
     };
 
+    // -------------------------
+    // Save to DB
+    // -------------------------
     await pool.query(
       `INSERT INTO profiles
         (id, name, gender, gender_probability, age, age_group, country_id, country_name, country_probability, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
-        profile.id, profile.name, profile.gender, profile.gender_probability,
-        profile.age, profile.age_group, profile.country_id, profile.country_name,
-        profile.country_probability, profile.created_at,
+        profile.id,
+        profile.name,
+        profile.gender,
+        profile.gender_probability,
+        profile.age,
+        profile.age_group,
+        profile.country_id,
+        profile.country_name,
+        profile.country_probability,
+        profile.created_at,
       ]
     );
 
-    return res.status(201).json({ status: "success", data: profile });
+    // -------------------------
+    // Response
+    // -------------------------
+    return res.status(201).json({
+      status: "success",
+      data: profile,
+    });
   } catch (err) {
-    console.log(err);
-    return res.status(500).json({ status: "error", message: err.message });
+    console.error("POST /api/profiles error:", err);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Server error.",
+    });
   }
 });
-
-// GET /api/profiles/search  (natural language) 
 app.get("/api/profiles/search", async (req, res) => {
   try {
     const { q } = req.query;
