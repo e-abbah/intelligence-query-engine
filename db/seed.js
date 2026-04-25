@@ -1,4 +1,4 @@
-import { pool } from "../index.js";
+import { pool } from "./pool.js";
 import { v7 as uuidv7 } from "uuid";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";

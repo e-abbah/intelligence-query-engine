@@ -301,7 +301,7 @@ const [genderData, ageData, countryData] = await Promise.all([
     return res.status(201).json({ status: "success", data: profile });
   } catch (err) {
     console.log(err);
-    return res.status(500).json({ status: "error", message: "Server error." });
+    return res.status(500).json({ status: "error", message: err.message });
   }
 });
 
