@@ -255,13 +255,13 @@ const [genderData, ageData, countryData] = await Promise.all([
   fetchJSON(`https://api.agify.io?name=${encodeURIComponent(name)}`),
   fetchJSON(`https://api.nationalize.io?name=${encodeURIComponent(name)}`),
 ]);
-    if (!genderData.gender || genderData.count === 0)
+    if (!genderData?.gender || genderData.count === 0)
       return res.status(502).json({ status: "error", message: "Genderize returned an invalid response." });
 
-    if (!ageData.age)
+    if (!ageData?.age)
       return res.status(502).json({ status: "error", message: "Agify returned an invalid response." });
 
-    if (!countryData.country || countryData.country.length === 0)
+    if (!countryData?.country || countryData.country.length === 0)
       return res.status(502).json({ status: "error", message: "Nationalize returned an invalid response." });
 
     const topCountry = getTopCountry(countryData.country);
