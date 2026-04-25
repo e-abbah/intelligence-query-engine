@@ -38,14 +38,18 @@ A Node.js + Express + PostgreSQL backend that generates and manages user demogra
 ---
 
 ## 📁 Project Structure
+
+```bash
 intelligence-api/
 │
-├── index.js # Main server file (all routes + logic)
-├── nlp.js # Natural language query parser
+├── index.js              # Main server file (all routes + logic)
+├── nlp.js                # Natural language query parser
+│
 ├── db/
-│ ├── init.js # Database schema initialization
-│ ├── seed.js # Seeder script
-│ └── seed_profiles.json
+│   ├── init.js          # Database schema initialization
+│   ├── seed.js          # Seeder script
+│   └── seed_profiles.json
+│
 ├── .env
 ├── package.json
 └── README.md
